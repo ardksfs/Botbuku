@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sistem Pemesanan Buku Online Bot</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f0f4f8;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        #chat-container {
+            background: white;
+            width: 400px;
+            height: 600px;
+            border-radius: 10px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        #chat-window {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            max-width: 75%;
+            clear: both;
+            padding: 12px 18px;
+            border-radius: 18px;
+            line-height: 1.4;
+            font-size: 0.95rem;
+        }
+
+        .system-msg {
+            background: #1976d2;
+            color: white;
+            float: left;
+            border-bottom-left-radius: 2px;
+        }
+
+        .user-msg {
+            background: #e3f2fd;
+            color: #0d47a1;
+            float: right;
+            border-bottom-right-radius: 2px;
+        }
+
+        #input-area {
+            padding: 15px;
+            background: #e8eaf6;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+        }
+
+        .option-btn {
+            background: #1976d2;
+            border: none;
+            color: white;
+            padding: 8px 14px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .option-btn:hover {
+            background: #115293;
+        }
+
+        .option-btn:disabled {
+            background: #90caf9;
+            cursor: not-allowed;
+        }
+
+        /* Scrollbar styling */
+        #chat-window::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #chat-window::-webkit-scrollbar-thumb {
+            background: #90caf9;
+            border-radius: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="chat-container" role="main" aria-label="Chat Pemesanan Buku Online">
+        <div id="chat-window" aria-live="polite"></div>
+        <div id="input-area" aria-label="Pilihan pengguna">
+            <!-- Dynamic buttons will appear here -->
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            const chatWindow = document.getElementById('chat-window');
+            const inputArea = document.getElementById('input-area');
+
+            // Data for categories and books with stock & price
+            const data = {
+                categories: {
+                    "Fiksi": [
+                        { title: "Negeri 5 Menara", stock: 10, price: 70000 },
+                        { title: "Laskar Pelangi", stock: 12, price: 85000 },
+                        { title: "Ayat-Ayat Cinta", stock: 7, price: 65000 }
+                    ],
+                    "Non-Fiksi": [
+                        { title: "Sapiens", stock: 15, price: 95000 },
+                        { title: "Rich Dad Poor Dad", stock: 4, price: 85000 },
+                        { title: "The Power of Habit", stock: 9, price: 75000 }
+                    ],
+                    "Teknologi": [
+                        { title: "Clean Code", stock: 6, price: 120000 },
+                        { title: "JavaScript: The Good Parts", stock: 8, price: 110000 },
+                        { title: "Introduction to Algorithms", stock: 5, price: 150000 }
+                    ],
+                    "Anak-anak": [
+                        { title: "Cerita Si Kancil", stock: 20, price: 40000 },
+                        { title: "Petualangan Adit & Sopo Jarwo", stock: 18, price: 45000 },
+                        { title: "Dongeng Nusantara", stock: 13, price: 50000 }
+                    ]
+                }
+            };
+
+            // State tracking current step
+            let state = {
+                step: 0,
+                selectedCategory: null,
+                selectedBook: null
+            };
+
+            // Utility: append message to chat window
+            function appendMessage(text, sender = 'system') {
+                const msgDiv = document.createElement('div');
+                msgDiv.textContent = text;
+                msgDiv.classList.add('message');
+                msgDiv.classList.add(sender === 'system' ? 'system-msg' : 'user-msg');
+                chatWindow.appendChild(msgDiv);
+                chatWindow.scrollTop = chatWindow.scrollHeight;
+            }
+
+            // Utility: clear input options
+            function clearInput() {
+                inputArea.innerHTML = '';
+            }
+
+            // Show options as buttons for user to choose
+            function showOptions(options) {
+                clearInput();
+                options.forEach(option => {
+                    const btn = document.createElement('button');
+                    btn.textContent = option.label;
+                    btn.className = 'option-btn';
+                    btn.setAttribute('type', 'button');
+                    btn.onclick = () => {
+                        option.action();
+                    };
+                    inputArea.appendChild(btn);
+                });
+            }
+
+            // Different steps of the conversation
+            function startConversation() {
+                state.step = 1;
+                appendMessage('Selamat datang di layanan pemesanan buku online!, Kami memiliki beberapa kategori buku. Silakan pilih kategori buku yang kamu minati:');
+                const categoryOptions = Object.keys(data.categories).map(cat => ({
+                    label: cat,
+                    action: () => selectCategory(cat),
+                }));
+                showOptions(categoryOptions);
+            }
+
+            function selectCategory(cat) {
+                state.selectedCategory = cat;
+                appendMessage(cat, 'user');
+                state.step = 2;
+                const books = data.categories[cat];
+                let bookListMsg = `Pilihan buku yang bagus! Berikut daftar judul buku dalam kategori ${cat}:`;
+                appendMessage(bookListMsg);
+                const bookOptions = books.map(book => ({
+                    label: book.title,
+                    action: () => selectBook(book.title)
+                }));
+                showOptions(bookOptions);
+            }
+
+            function selectBook(title) {
+                const book = data.categories[state.selectedCategory].find(b => b.title === title);
+                if (!book) {
+                    appendMessage("Maaf, buku tidak ditemukan.", "system");
+                    startConversation();
+                    return;
+                }
+                state.selectedBook = book;
+                appendMessage(title, 'user');
+                state.step = 3;
+                appendMessage(`Buku "${book.title}" tersedia sebanyak ${book.stock} eksemplar dengan harga Rp ${book.price.toLocaleString('id-ID')} per buku. Apakah Anda ingin memesan buku ini?`);
+                showOptions([
+                    { label: "Ya, saya pesan buku tersebut.", action: confirmOrder },
+                    { label: "Tidak, pilih buku lain.", action: () => selectCategory(state.selectedCategory) },
+                    { label: "Pilih kategori lain.", action: startConversation }
+                ]);
+            }
+
+            function confirmOrder() {
+                appendMessage("Ya, saya pesan buku tersebut.", 'user');
+                appendMessage(`Terima kasih! Pesanan buku "${state.selectedBook.title}" Anda telah kami terima. Kami akan segera memproses pengirimannya. Apakah ada yang bisa kami bantu lagi?`);
+                showOptions([
+                    { label: "Ya, pilih kategori buku lain.", action: startConversation },
+                    { label: "Tidak, terima kasih.", action: endConversation }
+                ]);
+            }
+
+            function endConversation() {
+                appendMessage("Tidak, terima kasih.", 'user');
+                appendMessage("Terima kasih telah menggunakan layanan kami. Tunggu pesananmu sampai dirumah ya. Terimakasih #Selamat membaca!");
+                clearInput();
+            }
+
+            // Initialize conversation on page load
+            startConversation();
+
+        })();
+    </script>
+</body>
+
+</html>
